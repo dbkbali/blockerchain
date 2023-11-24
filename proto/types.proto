@@ -1,0 +1,40 @@
+syntax="proto3";
+
+option go_package = "github.com/dbkbali/blocker/proto";
+
+message Block {
+    Header header = 1;
+    repeated Transaction transactions = 2;
+}
+
+message Header {
+    int32 version = 1;
+    int32 height = 2;
+    bytes prevHash = 3;
+    bytes rootHash = 4; // merkle root
+    int64 timestamp = 5;
+}
+
+message TxInput {
+    // the previous transaction hash
+    // containint the unspent output
+    bytes prevTxHash = 1;
+    // the index of the output in the previous transaction
+    //we now want to spend
+    uint32 prevOutIndex = 2;
+    bytes publicKey = 3;
+    // the signature shouldn't be hashed
+    bytes signature = 4;
+}
+
+message TxOutput {
+    int64 amount = 1;
+    bytes address = 2;
+}
+
+message Transaction {
+    int32 version = 1;
+    repeated TxInput inputs = 2;
+    repeated TxOutput outputs = 3;
+}
+
