@@ -2,6 +2,20 @@ syntax="proto3";
 
 option go_package = "github.com/dbkbali/blocker/proto";
 
+service Node {
+    rpc Handshake(HandshakeRequest) returns (HandshakeRequest);
+    rpc HandleTransaction(Transaction) returns (Ack);
+}
+
+message HandshakeRequest {
+    string version = 1;
+    int32 height = 2;
+    string listenAddr = 3;
+    repeated string peerList = 4;
+}
+
+message Ack {}
+
 message Block {
     Header header = 1;
     repeated Transaction transactions = 2;
