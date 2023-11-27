@@ -28,6 +28,15 @@ func NewPrivateKeyFromString(s string) *PrivateKey {
 	return NewPrivateKeyFromSeed(b)
 }
 
+func NewPrivateKeyFromStringSeed(s string) *PrivateKey {
+	seedBytes, err := hex.DecodeString(s)
+	if err != nil {
+		panic(err)
+	}
+
+	return NewPrivateKeyFromSeed(seedBytes)
+}
+
 func NewPrivateKeyFromSeed(seed []byte) *PrivateKey {
 	if len(seed) != SeedLen {
 		panic("invalid seed length must be 32 bytes")

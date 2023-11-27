@@ -10,6 +10,8 @@ import (
 	"github.com/dbkbali/blocker/types"
 )
 
+const initSeed = "b927acba1ee5ebaf030af1a6ac2eb63922942ea39997ad7b2a23754cab1795d3"
+
 type HeaderList struct {
 	headers []*proto.Header
 }
@@ -41,12 +43,14 @@ func (h *HeaderList) Len() int {
 }
 
 type Chain struct {
+	txStore    TXStorer
 	blockStore BlockStorer
 	headers    *HeaderList
 }
 
-func NewChain(bs BlockStorer) *Chain {
+func NewChain(bs BlockStorer, txStore TXStorer) *Chain {
 	chain := &Chain{
+		txStore:    txStore,
 		blockStore: bs,
 		headers:    NewHeaderList(),
 	}
@@ -68,6 +72,13 @@ func (c *Chain) AddBlock(b *proto.Block) error {
 
 func (c *Chain) addBlock(b *proto.Block) error {
 	c.headers.Add(b.Header)
+
+	for _, tx := range b.Transactions {
+		fmt.Println("NEW TX: ", hex.EncodeToString(types.HashTransaction(tx)))
+		if err := c.txStore.Put(tx); err != nil {
+			return err
+		}
+	}
 
 	return c.blockStore.Put(b)
 }
@@ -106,12 +117,27 @@ func (c *Chain) ValidateBlock(b *proto.Block) error {
 }
 
 func (c *Chain) createGenesisBlock() *proto.Block {
-	privKey := crypto.GeneratePrivateKey()
+	privKey := crypto.NewPrivateKeyFromStringSeed(initSeed)
+
 	block := &proto.Block{
 		Header: &proto.Header{
 			Version: 1,
 		},
 	}
+
+	tx := &proto.Transaction{
+		Version: 1,
+		Inputs:  []*proto.TxInput{},
+		Outputs: []*proto.TxOutput{
+			{
+				Amount:  1000,
+				Address: privKey.Public().Address().Bytes(),
+			},
+		},
+	}
+
+	block.Transactions = append(block.Transactions, tx)
+
 	types.SignBlock(privKey, block)
 
 	return block

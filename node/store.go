@@ -9,6 +9,42 @@ import (
 	"github.com/dbkbali/blocker/types"
 )
 
+type TXStorer interface {
+	Put(*proto.Transaction) error
+	Get(string) (*proto.Transaction, error)
+}
+
+type MemoryTXStore struct {
+	lock sync.RWMutex
+	txx  map[string]*proto.Transaction
+}
+
+func NewMemoryTXStore() *MemoryTXStore {
+	return &MemoryTXStore{
+		txx: make(map[string]*proto.Transaction),
+	}
+}
+
+func (s *MemoryTXStore) Put(tx *proto.Transaction) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	hash := hex.EncodeToString(types.HashTransaction(tx))
+	s.txx[hash] = tx
+	return nil
+}
+
+func (s *MemoryTXStore) Get(hash string) (*proto.Transaction, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	tx, ok := s.txx[hash]
+	if !ok {
+		return nil, fmt.Errorf("transaction with hash [%s] does not exist", hash)
+	}
+	return tx, nil
+}
+
 type BlockStorer interface {
 	Put(*proto.Block) error
 	Get(string) (*proto.Block, error)
