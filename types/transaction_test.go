@@ -1,7 +1,6 @@
 package types
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/dbkbali/blocker/crypto"
@@ -49,7 +48,4 @@ func TestNewTransaction(t *testing.T) {
 	input.Signature = sig.Bytes()
 
 	assert.True(t, VerifyTransaction(tx))
-
-	fmt.Printf("tx: %v\n", tx)
-
 }

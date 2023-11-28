@@ -21,11 +21,10 @@ func main() {
 	makeNode(":3002", []string{":4000"}, false)
 
 	for {
-		time.Sleep(time.Millisecond * 100)
+		time.Sleep(time.Second)
 		makeTransaction()
 	}
 
-	select {}
 }
 
 func makeNode(listenAddr string, bootstrapNodes []string, isValidator bool) *node.Node {
