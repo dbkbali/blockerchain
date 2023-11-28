@@ -42,16 +42,25 @@ func (h *HeaderList) Len() int {
 	return len(h.headers)
 }
 
+type UTXO struct {
+	Hash     string
+	OutIndex int
+	Amount   int64
+	Spent    bool
+}
+
 type Chain struct {
 	txStore    TXStorer
 	blockStore BlockStorer
 	headers    *HeaderList
+	utxoStore  UTXOStorer
 }
 
 func NewChain(bs BlockStorer, txStore TXStorer) *Chain {
 	chain := &Chain{
 		txStore:    txStore,
 		blockStore: bs,
+		utxoStore:  NewMemoryUTXOStore(),
 		headers:    NewHeaderList(),
 	}
 	chain.addBlock(chain.createGenesisBlock())
@@ -74,10 +83,23 @@ func (c *Chain) addBlock(b *proto.Block) error {
 	c.headers.Add(b.Header)
 
 	for _, tx := range b.Transactions {
-		fmt.Println("NEW TX: ", hex.EncodeToString(types.HashTransaction(tx)))
 		if err := c.txStore.Put(tx); err != nil {
 			return err
 		}
+		hash := hex.EncodeToString(types.HashTransaction(tx))
+
+		for i, output := range tx.Outputs {
+			utxo := &UTXO{
+				Hash:     hash,
+				OutIndex: i,
+				Amount:   output.Amount,
+				Spent:    false,
+			}
+			if err := c.utxoStore.Put(utxo); err != nil {
+				return err
+			}
+		}
+
 	}
 
 	return c.blockStore.Put(b)
@@ -113,6 +135,48 @@ func (c *Chain) ValidateBlock(b *proto.Block) error {
 		return fmt.Errorf("invalid previous block hash")
 	}
 	// TODO
+	for _, tx := range b.Transactions {
+		if err := c.ValidateTransaction(tx); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (c *Chain) ValidateTransaction(tx *proto.Transaction) error {
+	// verify signature
+	if !types.VerifyTransaction(tx) {
+		return fmt.Errorf("invalid transaction signature")
+	}
+	// validate all inputs unspent
+	var (
+		nInputs = len(tx.Inputs)
+		hash    = hex.EncodeToString(types.HashTransaction(tx))
+	)
+
+	sumInputs := int64(0)
+	for i := 0; i < nInputs; i++ {
+		prevHash := hex.EncodeToString(tx.Inputs[i].PrevTxHash)
+		key := fmt.Sprintf("%s_%d", prevHash, i)
+		utxo, err := c.utxoStore.Get(key)
+		sumInputs += utxo.Amount
+		if err != nil {
+			return err
+		}
+		if utxo.Spent {
+			return fmt.Errorf("output [%d] of transaction [%s] is already spent", i, hash)
+		}
+	}
+
+	sumOutputs := int64(0)
+	for _, output := range tx.Outputs {
+		sumOutputs += output.Amount
+	}
+
+	if sumInputs < sumOutputs {
+		return fmt.Errorf("insufficient funds unspent (%d) spent (%d)", sumInputs, sumOutputs)
+	}
 	return nil
 }
 

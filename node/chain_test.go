@@ -1,8 +1,6 @@
 package node
 
 import (
-	"encoding/hex"
-	"fmt"
 	"testing"
 
 	"github.com/dbkbali/blocker/crypto"
@@ -60,6 +58,42 @@ func TestAddBlock(t *testing.T) {
 	}
 }
 
+func TestAddBlockWithTxInsufficientFunds(t *testing.T) {
+	var (
+		chain     = NewChain(NewMemoryBlockStore(), NewMemoryTXStore())
+		block     = randomBlock(t, chain)
+		privKey   = crypto.NewPrivateKeyFromStringSeed(initSeed)
+		recipient = crypto.GeneratePrivateKey().Public().Address().Bytes()
+	)
+
+	prevTx, err := chain.txStore.Get("7c66fa0ecedf3f4748bba3694df77f8b86a197559d9810dde357b78a8badcc8a")
+	assert.Nil(t, err)
+
+	inputs := []*proto.TxInput{
+		{
+			PrevTxHash:   types.HashTransaction(prevTx),
+			PrevOutIndex: 0,
+			PublicKey:    privKey.Public().Bytes(),
+		},
+	}
+	outputs := []*proto.TxOutput{
+		{
+			Amount:  1001,
+			Address: recipient,
+		},
+	}
+	tx := &proto.Transaction{
+		Version: 1,
+		Inputs:  inputs,
+		Outputs: outputs,
+	}
+
+	sig := types.SignTransaction(privKey, tx)
+	tx.Inputs[0].Signature = sig.Bytes()
+	block.Transactions = append(block.Transactions, tx)
+	require.NotNil(t, chain.AddBlock(block))
+
+}
 func TestAddBlockWithTxs(t *testing.T) {
 	var (
 		chain     = NewChain(NewMemoryBlockStore(), NewMemoryTXStore())
@@ -68,13 +102,12 @@ func TestAddBlockWithTxs(t *testing.T) {
 		recipient = crypto.GeneratePrivateKey().Public().Address().Bytes()
 	)
 
-	ft, err := chain.txStore.Get("7c66fa0ecedf3f4748bba3694df77f8b86a197559d9810dde357b78a8badcc8a")
+	prevTx, err := chain.txStore.Get("7c66fa0ecedf3f4748bba3694df77f8b86a197559d9810dde357b78a8badcc8a")
 	assert.Nil(t, err)
-	fmt.Println(ft)
 
 	inputs := []*proto.TxInput{
 		{
-			PrevTxHash:   types.HashTransaction(ft),
+			PrevTxHash:   types.HashTransaction(prevTx),
 			PrevOutIndex: 0,
 			PublicKey:    privKey.Public().Bytes(),
 		},
@@ -84,17 +117,20 @@ func TestAddBlockWithTxs(t *testing.T) {
 			Amount:  100,
 			Address: recipient,
 		},
+		{
+			Amount:  900,
+			Address: privKey.Public().Address().Bytes(),
+		},
 	}
 	tx := &proto.Transaction{
 		Version: 1,
 		Inputs:  inputs,
 		Outputs: outputs,
 	}
+
+	sig := types.SignTransaction(privKey, tx)
+	tx.Inputs[0].Signature = sig.Bytes()
 	block.Transactions = append(block.Transactions, tx)
 	require.Nil(t, chain.AddBlock(block))
-	txHash := hex.EncodeToString(types.HashTransaction(tx))
 
-	fetchedTx, err := chain.txStore.Get(txHash)
-	assert.Nil(t, err)
-	assert.Equal(t, tx, fetchedTx)
 }

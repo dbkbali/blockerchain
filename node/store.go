@@ -14,6 +14,43 @@ type TXStorer interface {
 	Get(string) (*proto.Transaction, error)
 }
 
+type UTXOStorer interface {
+	Put(*UTXO) error
+	Get(string) (*UTXO, error)
+}
+
+type MemoryUTXOStore struct {
+	lock sync.RWMutex
+	data map[string]*UTXO
+}
+
+func NewMemoryUTXOStore() *MemoryUTXOStore {
+	return &MemoryUTXOStore{
+		data: make(map[string]*UTXO),
+	}
+}
+
+func (s *MemoryUTXOStore) Put(utxo *UTXO) error {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+
+	key := fmt.Sprintf("%s_%d", utxo.Hash, utxo.OutIndex)
+	s.data[key] = utxo
+
+	return nil
+}
+
+func (s *MemoryUTXOStore) Get(hash string) (*UTXO, error) {
+	s.lock.RLock()
+	defer s.lock.RUnlock()
+
+	utxo, ok := s.data[hash]
+	if !ok {
+		return nil, fmt.Errorf("utxo with hash [%s] does not exist", hash)
+	}
+	return utxo, nil
+}
+
 type MemoryTXStore struct {
 	lock sync.RWMutex
 	txx  map[string]*proto.Transaction
